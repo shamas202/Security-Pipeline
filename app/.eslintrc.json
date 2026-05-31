@@ -1,0 +1,31 @@
+{
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "commonjs"
+  },
+  "plugins": ["security"],
+  "extends": ["eslint:recommended", "plugin:security/recommended"],
+  "rules": {
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-func": "error",
+    "no-param-reassign": "warn",
+    "no-console": "off",
+    "no-process-exit": "warn",
+    "security/detect-object-injection": "warn",
+    "security/detect-non-literal-regexp": "warn",
+    "security/detect-non-literal-fs-filename": "warn",
+    "security/detect-possible-timing-attacks": "warn",
+    "security/detect-unsafe-regex": "error",
+    "security/detect-buffer-noassert": "error",
+    "security/detect-child-process": "error",
+    "security/detect-disable-mustache-escape": "error",
+    "security/detect-no-csrf-before-method-override": "error",
+    "security/detect-pseudoRandomBytes": "error"
+  },
+  "ignorePatterns": ["node_modules/", "coverage/"]
+}
