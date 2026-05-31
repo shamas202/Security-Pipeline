@@ -1,0 +1,53 @@
+{
+  "name": "devsecops-api",
+  "version": "1.0.0",
+  "description": "Hardened Node.js API for DevSecOps pipeline demo",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "jest --coverage --forceExit",
+    "test:ci": "jest --coverage --ci --forceExit",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "audit": "npm audit --audit-level=high",
+    "audit:fix": "npm audit fix"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.3.1",
+    "helmet": "^7.1.0"
+  },
+  "devDependencies": {
+    "@microsoft/eslint-formatter-sarif": "^3.1.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-security": "^3.0.1",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "*.js",
+      "!jest.config.js"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 70,
+        "functions": 55,
+        "lines": 70,
+        "statements": 70
+      }
+    },
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "cobertura"
+    ]
+  }
+}
