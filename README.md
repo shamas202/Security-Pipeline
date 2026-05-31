@@ -185,3 +185,5 @@ devsecops-pipeline/
 - [Trivy docs](https://aquasecurity.github.io/trivy)
 - [Kubesec](https://kubesec.io)
 - [OWASP Node.js Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Nodejs_Security_Cheat_Sheet.html)
+
+# Update README.md: Add Project Goals
