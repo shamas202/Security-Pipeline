@@ -191,3 +191,5 @@ devsecops-pipeline/
 # Update README.md: Add How to Run
 
 # Update README.md: Add Contributors
+
+# Update README.md: Add License
