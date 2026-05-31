@@ -189,3 +189,5 @@ devsecops-pipeline/
 # Update README.md: Add Project Goals
 
 # Update README.md: Add How to Run
+
+# Update README.md: Add Contributors
