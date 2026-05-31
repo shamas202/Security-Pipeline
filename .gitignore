@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.npm/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Build artifacts
+dist/
+build/
+*.sarif
+trivy-reports/
+kube-bench-results.json
+npm-audit*.json
+pod-security-check.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Helm
+*.tgz
+charts/*.tgz
