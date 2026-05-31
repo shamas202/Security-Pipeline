@@ -1,0 +1,53 @@
+# Security Policy
+
+## Supported Versions
+
+| Version | Supported |
+|---------|-----------|
+| 1.x     | ✅ Yes    |
+| < 1.0   | ❌ No     |
+
+## Reporting a Vulnerability
+
+We take security seriously. If you discover a security vulnerability, please follow responsible disclosure:
+
+1. **Do NOT open a public GitHub issue.**
+2. Email **security@example.com** with:
+   - Description of the vulnerability
+   - Steps to reproduce
+   - Potential impact
+   - Suggested remediation (if any)
+3. You will receive an acknowledgement within **48 hours**.
+4. We aim to release a fix within **14 days** for critical issues.
+
+## Security Controls
+
+This project enforces the following controls:
+
+- All containers run as non-root (UID 1000)
+- Read-only root filesystem in all pods
+- No privilege escalation (`allowPrivilegeEscalation: false`)
+- All Linux capabilities dropped
+- Seccomp RuntimeDefault profile applied
+- NetworkPolicy: default deny-all, allowlist only required traffic
+- RBAC: least-privilege service accounts
+- OWASP-recommended HTTP security headers (Helmet.js)
+- Rate limiting on all endpoints
+- Input validation and sanitization
+- No hardcoded secrets (GitHub Secrets + OIDC)
+- Dependency scanning on every commit
+- Container vulnerability scanning on every build
+- Weekly CIS Kubernetes Benchmark (kube-bench)
+
+## Threat Model
+
+| Threat | Mitigation |
+|--------|------------|
+| Compromised dependency | npm audit + Trivy + Dependabot |
+| Container escape | Non-root + seccomp + read-only FS |
+| Lateral movement | NetworkPolicy deny-all |
+| Privilege escalation | RBAC + no privileged containers |
+| Secret leakage | GitLeaks + no env secrets in code |
+| XSS / injection | Helmet CSP + input sanitization |
+| DDoS / abuse | Rate limiting per IP |
+| Vulnerable base image | Trivy + Docker Scout weekly |
