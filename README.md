@@ -187,3 +187,5 @@ devsecops-pipeline/
 - [OWASP Node.js Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Nodejs_Security_Cheat_Sheet.html)
 
 # Update README.md: Add Project Goals
+
+# Update README.md: Add How to Run
