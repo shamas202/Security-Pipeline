@@ -51,3 +51,5 @@ This project enforces the following controls:
 | XSS / injection | Helmet CSP + input sanitization |
 | DDoS / abuse | Rate limiting per IP |
 | Vulnerable base image | Trivy + Docker Scout weekly |
+
+# Update SECURITY.md: Add reporting details
