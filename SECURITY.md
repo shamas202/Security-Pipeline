@@ -53,3 +53,5 @@ This project enforces the following controls:
 | Vulnerable base image | Trivy + Docker Scout weekly |
 
 # Update SECURITY.md: Add reporting details
+
+# Update SECURITY.md: Add security policy
