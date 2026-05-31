@@ -1,0 +1,89 @@
+.PHONY: build test lint scan deploy-local clean help
+
+REGISTRY    ?= ghcr.io
+IMAGE_NAME  ?= your-org/devsecops-pipeline
+IMAGE_TAG   ?= $(shell git rev-parse --short HEAD)
+FULL_IMAGE  := $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
+NAMESPACE   ?= development
+CLUSTER     ?= kind-devsecops
+
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+	  awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+# ─── App ──────────────────────────────────────────────────────────────────────
+install: ## Install Node.js dependencies
+	cd app && npm ci
+
+build: ## Build Docker image
+	docker build \
+	  --label "org.opencontainers.image.revision=$(shell git rev-parse HEAD)" \
+	  --label "org.opencontainers.image.created=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)" \
+	  -t $(FULL_IMAGE) \
+	  -t $(REGISTRY)/$(IMAGE_NAME):latest \
+	  ./app
+	@echo "✅ Built $(FULL_IMAGE)"
+
+test: ## Run unit tests with coverage
+	cd app && npm test
+
+lint: ## Run ESLint
+	cd app && npm run lint
+
+audit: ## Run npm security audit
+	cd app && npm audit --audit-level=high
+
+# ─── Security Scans ───────────────────────────────────────────────────────────
+scan: scan-image scan-iac ## Run all security scans
+
+scan-image: ## Trivy scan on Docker image
+	@echo "🔍 Scanning image $(FULL_IMAGE)..."
+	bash scripts/trivy-scan.sh $(FULL_IMAGE)
+
+scan-iac: ## Trivy and Checkov scan on IaC
+	@echo "🔍 Scanning Kubernetes manifests..."
+	trivy config kubernetes/
+	checkov -d kubernetes/ --framework kubernetes --compact
+
+scan-secrets: ## GitLeaks secret scan
+	gitleaks detect --source . --verbose
+
+# ─── Local Kubernetes ──────────────────────────────────────────────────────────
+cluster-up: ## Create local kind cluster
+	kind create cluster --name devsecops --config - <<EOF
+	kind: Cluster
+	apiVersion: kind.x-k8s.io/v1alpha4
+	nodes:
+	  - role: control-plane
+	  - role: worker
+	EOF
+	@echo "✅ Kind cluster ready"
+
+cluster-down: ## Delete local kind cluster
+	kind delete cluster --name devsecops
+
+load-image: build ## Load Docker image into kind cluster
+	kind load docker-image $(FULL_IMAGE) --name devsecops
+	kind load docker-image $(REGISTRY)/$(IMAGE_NAME):latest --name devsecops
+
+deploy-local: load-image ## Deploy to local kind cluster via Helm
+	kubectl create namespace $(NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
+	helm upgrade --install devsecops-app helm/devsecops-app \
+	  --namespace $(NAMESPACE) \
+	  --set image.repository=$(REGISTRY)/$(IMAGE_NAME) \
+	  --set image.tag=$(IMAGE_TAG) \
+	  --set image.pullPolicy=Never \
+	  --wait --timeout 3m
+	@echo "✅ Deployed to local cluster"
+
+port-forward: ## Forward port 3000 to local machine
+	kubectl port-forward -n $(NAMESPACE) svc/devsecops-app 3000:80
+
+kube-bench: ## Run kube-bench against local cluster
+	bash scripts/kube-bench.sh
+
+# ─── Cleanup ──────────────────────────────────────────────────────────────────
+clean: ## Remove build artifacts
+	rm -rf app/coverage app/node_modules
+	docker rmi $(FULL_IMAGE) $(REGISTRY)/$(IMAGE_NAME):latest 2>/dev/null || true
+	@echo "✅ Cleaned"
