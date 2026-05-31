@@ -63,3 +63,4 @@ else
   echo "✅ No critical vulnerabilities found."
 fi
 // Iteration 1: trivial update
+// Iteration 2: trivial update

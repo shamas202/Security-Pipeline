@@ -56,3 +56,4 @@ This project enforces the following controls:
 
 # Update SECURITY.md: Add security policy
 # Iteration 1: trivial update
+# Iteration 2: trivial update

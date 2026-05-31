@@ -88,3 +88,4 @@ clean: ## Remove build artifacts
 	docker rmi $(FULL_IMAGE) $(REGISTRY)/$(IMAGE_NAME):latest 2>/dev/null || true
 	@echo "✅ Cleaned"
 # Iteration 1: trivial update
+# Iteration 2: trivial update
