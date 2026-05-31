@@ -1,0 +1,14 @@
+apiVersion: v2
+name: devsecops-app
+description: Hardened Node.js API Helm chart for DevSecOps pipeline
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - devsecops
+  - nodejs
+  - api
+  - security
+maintainers:
+  - name: Platform Team
+    email: platform@example.com
