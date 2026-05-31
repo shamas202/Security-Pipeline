@@ -62,3 +62,4 @@ if [[ "$CRITICAL_COUNT" -gt 0 ]]; then
 else
   echo "✅ No critical vulnerabilities found."
 fi
+// Iteration 1: trivial update

@@ -51,3 +51,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # Use dumb-init to handle signals correctly
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "server.js"]
+# Iteration 1: trivial update

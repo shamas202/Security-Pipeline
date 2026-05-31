@@ -92,3 +92,4 @@ affinity:
                 values:
                   - devsecops-app
           topologyKey: kubernetes.io/hostname
+# Iteration 1: trivial update

@@ -87,3 +87,4 @@ clean: ## Remove build artifacts
 	rm -rf app/coverage app/node_modules
 	docker rmi $(FULL_IMAGE) $(REGISTRY)/$(IMAGE_NAME):latest 2>/dev/null || true
 	@echo "✅ Cleaned"
+# Iteration 1: trivial update
