@@ -1,0 +1,128 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+  packages: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  AWS_REGION: us-east-1
+  EKS_CLUSTER_NAME: devsecops-cluster
+  HELM_CHART: helm/devsecops-app
+  NAMESPACE: production
+
+jobs:
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment:
+      name: production
+      url: https://api.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: GitHubActions-Deploy-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "3.14.0"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Helm deploy
+        run: |
+          helm upgrade --install devsecops-app ${{ env.HELM_CHART }} \
+            --namespace ${{ env.NAMESPACE }} \
+            --create-namespace \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
+            --set image.tag=sha-${{ github.sha }} \
+            --set image.pullPolicy=Always \
+            --set replicaCount=2 \
+            --set env.NODE_ENV=production \
+            --set resources.limits.cpu=500m \
+            --set resources.limits.memory=512Mi \
+            --set resources.requests.cpu=100m \
+            --set resources.requests.memory=128Mi \
+            --wait \
+            --timeout 5m \
+            --atomic \
+            --history-max 5
+
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/devsecops-app \
+            -n ${{ env.NAMESPACE }} \
+            --timeout=300s
+
+      - name: Post-deploy pod security check
+        run: |
+          echo "=== Checking pod security contexts ==="
+          kubectl get pods -n ${{ env.NAMESPACE }} -o json | \
+            jq '.items[].spec.containers[].securityContext' | \
+            tee pod-security-check.json
+
+          # Fail if any container runs as root
+          ROOT_CONTAINERS=$(kubectl get pods -n ${{ env.NAMESPACE }} -o json | \
+            jq '[.items[].spec.containers[] | select(.securityContext.runAsNonRoot != true)] | length')
+          
+          if [ "$ROOT_CONTAINERS" -gt "0" ]; then
+            echo "❌ ERROR: $ROOT_CONTAINERS container(s) running as root!"
+            exit 1
+          fi
+          echo "✅ All containers running as non-root"
+
+      - name: Upload post-deploy report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: post-deploy-security
+          path: pod-security-check.json
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "❌ *Deploy FAILED* for `${{ github.repository }}`",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "❌ *Deployment Failed*\n*Repo:* `${{ github.repository }}`\n*Branch:* `${{ github.ref_name }}`\n*Commit:* `${{ github.sha }}`\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
