@@ -1,0 +1,192 @@
+name: Weekly Security Audit
+
+on:
+  schedule:
+    - cron: "0 2 * * 1" # Every Monday at 02:00 UTC
+  workflow_dispatch:
+    inputs:
+      scan_target:
+        description: "Additional scan target (image tag)"
+        required: false
+        default: "latest"
+
+permissions:
+  contents: read
+  security-events: write
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  AWS_REGION: us-east-1
+  EKS_CLUSTER_NAME: devsecops-cluster
+
+jobs:
+  trivy-filesystem:
+    name: Trivy Filesystem Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-fs.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: "0"
+
+      - name: Upload Trivy FS SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-filesystem
+
+      - name: Trivy JSON report (for artifact)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: json
+          output: trivy-fs.json
+          severity: CRITICAL,HIGH,MEDIUM
+
+      - name: Upload Trivy FS report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-fs-report
+          path: trivy-fs.json
+          retention-days: 90
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-2.0, LGPL-2.1
+          comment-summary-in-pr: always
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: app/package-lock.json
+
+      - name: Full npm audit
+        working-directory: app
+        run: |
+          npm audit --json > npm-audit-full.json || true
+          npm audit --audit-level=moderate
+
+      - name: Upload npm audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-full
+          path: app/npm-audit-full.json
+          retention-days: 90
+
+  kube-bench:
+    name: Kube-bench Cluster Benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_READONLY_ROLE_ARN }}
+          role-session-name: GitHubActions-KubeBench-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Run kube-bench
+        run: bash scripts/kube-bench.sh
+
+      - name: Upload kube-bench results
+        uses: actions/upload-artifact@v4
+        with:
+          name: kube-bench-results
+          path: kube-bench-results.json
+          retention-days: 90
+
+  generate-security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [trivy-filesystem, dependency-review, kube-bench]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: security-artifacts/
+
+      - name: Generate consolidated report
+        run: |
+          cat > security-report.md << 'EOF'
+          # Security Audit Report
+          **Date:** $(date -u +"%Y-%m-%d %H:%M UTC")
+          **Repository:** ${{ github.repository }}
+          **Run:** ${{ github.run_id }}
+
+          ## Summary
+          | Scan | Status |
+          |------|--------|
+          | Trivy Filesystem | ${{ needs.trivy-filesystem.result }} |
+          | Dependency Review | ${{ needs.dependency-review.result }} |
+          | Kube-bench | ${{ needs.kube-bench.result }} |
+
+          ## Artifacts
+          All detailed scan results are available in the workflow artifacts for 90 days.
+          EOF
+          
+          # Replace $() with actual values
+          sed -i "s/\$(date -u +\"%Y-%m-%d %H:%M UTC\")/$(date -u +"%Y-%m-%d %H:%M UTC")/" security-report.md
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-report-${{ github.run_id }}
+          path: |
+            security-report.md
+            security-artifacts/
+          retention-days: 90
+
+      - name: Notify Slack — audit complete
+        if: always()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "🔒 *Weekly Security Audit Complete* — `${{ github.repository }}`",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "🔒 *Weekly Security Audit*\n*Filesystem Scan:* ${{ needs.trivy-filesystem.result }}\n*Dependency Review:* ${{ needs.dependency-review.result }}\n*Kube-bench:* ${{ needs.kube-bench.result }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Full Report>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
